@@ -1,5 +1,5 @@
 # Compiler
-FC = ifort
+FC = gfortran
 # Compiler flags
 ifeq ($(FC),gfortran)
         CFLAGS = -O0 -pg -g -fopenmp -fbacktrace -fbounds-check
@@ -27,9 +27,11 @@ OBJ = $(patsubst %,$(OBJDIR)/%,$(_OBJ))
 ifeq ($(FC),gfortran)
 # GFORTRAN
 # -J points to the output directory for the auto-generated .mod files
-$(OBJDIR)/%.o: $(SRCDIR)/%.f90 $(OBJ)
+#$(OBJDIR)/%.o: $(SRCDIR)/%.f90 $(OBJ)
+$(OBJDIR)/%.o: $(SRCDIR)/%.f90
 	$(FC) -c -o $@ $< $(CFLAGS) -J$(OBJDIR)
-$(OBJDIR)/%.o: $(NRDIR)/%.f90 $(OBJS)
+#$(OBJDIR)/%.o: $(NRDIR)/%.f90 $(OBJS)
+$(OBJDIR)/%.o: $(NRDIR)/%.f90
 	$(FC) -c -o $@ $< $(CFLAGS) -J$(OBJDIR)
 else
 #IFORT
@@ -49,7 +51,7 @@ $(TARGET): $(OBJ)
 clean:
 	rm -f $(OBJDIR)/*.o
 	rm -f $(OBJDIR)/*.mod
+	rm -f $(NRDIR)/*.mod
 	
 all:
 	echo $(NRDIR)
-

@@ -1,5 +1,5 @@
 # Compiler
-FC = ifort
+FC = gfortran
 # Compiler flags
 ifeq ($(FC),gfortran)
         CFLAGS = -O0 -pg -g -fopenmp -fbacktrace -fbounds-check

@@ -8,13 +8,17 @@ USE SEIR_sub
 
 implicit none
 
-real(8), dimension(:), allocatable   :: st, et, it, rt, t_loc              		! The SEIR Time Series Predictions and time points
-real(8), dimension(neq)              :: yt, dydt, yt_scale, ytsv, dydtsv   		! Vectors for RKQS
-real(8), dimension(nac,npv+1)        :: Ain                                		! Matrix to read in the age classified input parameters, for last 2 column details, see below
+real(8), dimension(nac,npv+1)        :: Ain   ! nodal Matrix to read in the age classified input parameters, 
+                                              ! for last 2 column details, see below
+real(8), dimension(:), allocatable   :: st, et, it, rt, t_loc   ! The SEIR Time Series Predictions and time points
+real(8), dimension(nac,npv+1)  :: Ain   ! nodal Matrix to read in the age classified input parameters, 
+                                        ! for last 2 column details, see below
+real(8), dimension(neq)              :: yt, dydt, yt_scale, ytsv, dydtsv   	! Vectors for RKQS
+
 real(8)                              :: dt_try, dt_next, time, timesv, dt_did
 real(8)                              :: dt, rtol, atol, acc
 integer                              :: nt
-integer                              :: i, ix, ioerr1, ioerr2, irecout, sizeout(2), t_count, irecspace
+integer                              :: i, inod, ix, ioerr1, ioerr2, irecout, sizeout(2), t_count, irecspace
 real                                 :: start, finish, time_tot
 real(8), DIMENSION(ncmp,nac)         :: output
 INTEGER, DIMENSION(2)                :: shp_out
@@ -31,9 +35,8 @@ call filenames   ! Call the subroutine to assign all filenames
 !--------------------------------------------------------------------------------------------------!
 open(unit=10,file=infile,STATUS='OLD',IOSTAT = ioerr1) ! Open the text file and assign it a number
 do ix = 1,nac
-    read(10,*) Ain(ix,:)
+    read(fid,*) Ain(ix,:)
 end do
-
 close(10)        ! Close after reading
 !--------------------------------------------------------------------------------------------------!
 ! 2 - Contact file school
@@ -59,6 +62,23 @@ close(10)        ! Close after reading
 open(unit=10,file=file_o,STATUS='OLD',IOSTAT = ioerr1) ! Open the text file and assign it a number
 read(10,*) C_o
 close(10)        ! Close after reading
+!--------------------------------------------------------------------------------------------------!
+! 6 - Geographic topology
+!--------------------------------------------------------------------------------------------------!
+open(unit=10,file=file_ntp,STATUS='OLD',IOSTAT = ioerr1) ! Open the text file and assign it a number
+do inod = 1,nnodes
+  read(10,*) nngbr(inod)
+  do ix = 1,nngbr(inod)
+     read(10,*) ngbrlst(inod,ix)
+  enddo 
+end do
+close(10)        ! Close after reading
+
+! assuming a constant flow of people into each node (for testing code)
+omg = 0.0d0
+do ix = 1,nac
+   omg(ix,ix) = 0.005
+end do
 
 !--------------------------------------------------------------------------------------------------!
 ! Assign parameters
@@ -91,17 +111,21 @@ t_ulck = Ain(7,npv+1) ! Time for introduction of lockdown
 ! Calculate R0
 Rm0 = beta/gamm(1)
 
-!--------------------------------------------------------------------------------------------------!
-! Initiate solution vectors
-!--------------------------------------------------------------------------------------------------!
-! Define initial values for the simulation, all proportions with respect to N_tot
-yt(1:neq:ncmp) = S0(:)           ! Intial proportion of susceptible - S_a's
-yt(2:neq:ncmp) = I0(:)           ! Initial population of exposed    - E_a's
-yt(3:neq:ncmp) = I0(:)           ! Initial proportion of infected, symptomatic   - I_s's
-yt(4:neq:ncmp) = 0.d0*I0(:)      ! Initial proportion of infected, symptomatic   - I_a's
-yt(5:neq:ncmp) = 0.d0            ! Initial proportion of recovered  - R_a's
-yt(6:neq:ncmp) = Nis             ! Initial value of population fraction
 
+! iterate over nodes to build the initial conditions
+do inod = 1,nnode
+   ix = (inod-1)*neq
+   !--------------------------------------------------------------------------------------------------!
+   ! Initiate solution vectors
+   !--------------------------------------------------------------------------------------------------!
+   ! Define initial values for the simulation, all proportions with respect to N_tot
+   yt(ix+1:ix+neq:ncmp) = S0(:)           ! Intial proportion of susceptible - S_a's
+   yt(ix+2:ix+neq:ncmp) = I0(:)           ! Initial population of exposed    - E_a's
+   yt(ix+3:ix+neq:ncmp) = I0(:)           ! Initial proportion of infected, symptomatic   - I_s's
+   yt(ix+4:ix+neq:ncmp) = 0.d0*I0(:)      ! Initial proportion of infected, symptomatic   - I_a's
+   yt(ix+5:ix+neq:ncmp) = 0.d0            ! Initial proportion of recovered  - R_a's
+   yt(ix+6:ix+neq:ncmp) = Nis             ! Initial value of population fraction
+end do
 !--------------------------------------------------------------------------------------------------!
 ! Set up solver stuff
 !--------------------------------------------------------------------------------------------------!
@@ -146,37 +170,41 @@ call print_matrix('ouput: ',6,16,output)
 do i = 2,nt
 
 	dt_try = dt
-!-----------------------------------------------------------------------------------
+!-----------------------------------------------------------------------------
 ! Use num. recipes rqks
-!-----------------------------------------------------------------------------------
-	         do while (abs(time-t_loc(i)) >= acc)
-	  	          call derivs_agc(time,yt,dydt)
-	!------------------------------------------------------------------------------------------------------------------
+!-----------------------------------------------------------------------------
+	do while (abs(time-t_loc(i)) >= acc)
+ 	     do inod = 1,nnodes
+                 ix = (inod-1)*neq
+	         call derivs_agc(time,yt(ix+1:ix+neq),dydt(ix+1:ix+neq))
+	         call add_nodal_interaction(time,yt,dydt,inod)
+             end do
+	!---------------------------------------------------------------------
 	! Define scaling according to Numerical Recipes trick in Chapter 16.2 
-	!------------------------------------------------------------------------------------------------------------------
-	        	  yt_scale = abs(yt)+abs(dt_try*dydt)
-	!---------------------------------------------------------------------------------------------------------------------
-	!---------------------------------------------------------------------------------------------------------------------
-	  	          ytsv = yt
-        	  	  dydtsv = dydt
-	          	  timesv = time
-    ! Use Runge-Kutta 4,5 integrator to integrate 
-		          call rkqs(yt,dydt,time,dt_try,rtol,yt_scale,dt_did,dt_next,derivs_agc)
-	  	          if (time.gt.t_loc(i)) then
-	  	        	yt   = ytsv
-	  	        	dydt = dydtsv
-	  	        	time = timesv
-	  	         	dt_try = t_loc(i) - time  
-	  	         else
-	  	        	dt_try = dt_next
-	  	         endif
-			 end do
-			 write(*,'(A23,I6,A8,I6,A6)') '# of completed steps = ', i, ' out of ', nt, ' steps'
-      ! Time steps output: Format >>> t S(t) E(t) I(t) R(t)
-	  !  write(20,'(5e16.9)') t_loc(i), N_tot*yt(1:4)
-	  !  write(*,'(I8,A8,I8,A6)') i, ' out of ', nt, ' steps'
-	  output = reshape(yt(:),shp_out)
-	  write(20,rec=(i-1)+1) output*N_tot  ! Write out file
+	!---------------------------------------------------------------------
+		  yt_scale = abs(yt)+abs(dt_try*dydt)
+	!---------------------------------------------------------------------
+	!---------------------------------------------------------------------
+	          ytsv = yt
+          	  dydtsv = dydt
+	  	  timesv = time
+	! Use Runge-Kutta 4,5 integrator to integrate 
+	          call rkqs(yt,dydt,time,dt_try,rtol,yt_scale,dt_did,dt_next,derivs_agc)
+	          if (time.gt.t_loc(i)) then
+	        	yt   = ytsv
+	        	dydt = dydtsv
+	        	time = timesv
+	         	dt_try = t_loc(i) - time  
+	         else
+	        	dt_try = dt_next
+	         endif
+	end do
+	write(*,'(A23,I6,A8,I6,A6)') '# of completed steps = ', i, ' out of ', nt, ' steps'
+      	! Time steps output: Format >>> t S(t) E(t) I(t) R(t)
+	!  write(20,'(5e16.9)') t_loc(i), N_tot*yt(1:4)
+	!  write(*,'(I8,A8,I8,A6)') i, ' out of ', nt, ' steps'
+	output = reshape(yt(:),shp_out)
+	write(20,rec=(i-1)+1) output*N_tot  ! Write out file
 enddo
 
 close(20)

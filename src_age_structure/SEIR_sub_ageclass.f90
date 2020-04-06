@@ -9,6 +9,36 @@ use omp_lib ! OMP runtime directives
 contains
 
 !--------------------------------------------------------------------------------------------!
+! Subroutine to add nodal interaction to the time derivatives
+!--------------------------------------------------------------------------------------------!
+SUBROUTINE add_nodal_interaction(t,y,dydt,inod)
+
+USE nrtype
+
+implicit none
+
+REAL(8), INTENT(IN)                  :: t
+REAL(8), DIMENSION(:), INTENT(IN)    :: y
+REAL(8), DIMENSION(:), INTENT(INOUT) :: dydt
+integer, intent(in)                  :: inod
+
+integer ingbr, ip, iq 
+
+! for all the neighbours of the current node
+ip = (inod-1)*neq
+do ingbr = 1,nngbr(inod)
+   iq = (ingbr-1)*neq
+   dydt(ip+1:ip+neq:ncmp) = dydt(ip+1:ip+neq:ncmp) + matvec_MKL(omg,y(ip+1:ip+neq:ncmp)) 
+   dydt(ip+2:ip+neq:ncmp) = dydt(ip+2:ip+neq:ncmp) + matvec_MKL(omg,y(ip+2:ip+neq:ncmp)) 
+   dydt(ip+4:ip+neq:ncmp) = dydt(ip+4:ip+neq:ncmp) + matvec_MKL(omg,y(ip+4:ip+neq:ncmp)) 
+   dydt(ip+5:ip+neq:ncmp) = dydt(ip+5:ip+neq:ncmp) + matvec_MKL(omg,y(ip+5:ip+neq:ncmp)) 
+   dydt(ip+6:ip+neq:ncmp) = dydt(ip+6:ip+neq:ncmp) + matvec_MKL(omg,y(ip+6:ip+neq:ncmp)) 
+end do
+
+END SUBROUTINE add_nodal_interaction
+
+
+!--------------------------------------------------------------------------------------------!
 ! Subroutine for defining ageclass model time derivatives
 !--------------------------------------------------------------------------------------------!
 
@@ -66,12 +96,14 @@ endif
 
 dydt(1:neq:ncmp) = lambda*y(6:neq:ncmp) - beta*y(1:neq:ncmp)*matvec_MKL(C_tot,y(3:neq:ncmp)/Nis) &
   - alpha*beta*y(1:neq:ncmp)*matvec_MKL(C_tot,y(4:neq:ncmp)/Nis) - mu_n(:)*y(1:neq:ncmp)
-dydt(2:neq:ncmp) = beta*y(1:neq:ncmp)*matvec_MKL(C_tot,y(3:neq:ncmp)/Nis) + alpha*beta*y(1:neq:ncmp)*matvec_MKL(C_tot,y(4:neq:ncmp)/Nis) &
+dydt(2:neq:ncmp) = beta*y(1:neq:ncmp)*matvec_MKL(C_tot,y(3:neq:ncmp)/Nis) &
+ + alpha*beta*y(1:neq:ncmp)*matvec_MKL(C_tot,y(4:neq:ncmp)/Nis) &
  - kappa(:)*y(2:neq:ncmp) - mu_n(:)*y(2:neq:ncmp)
 dydt(3:neq:ncmp) = rho(:)*kappa(:)*y(2:neq:ncmp) - (gamm(:)+mu_d(:))*y(3:neq:ncmp)
 dydt(4:neq:ncmp) = (1.d0-rho(:))*kappa(:)*y(2:neq:ncmp) - (gamm(:)+mu_d(:))*y(4:neq:ncmp)
 dydt(5:neq:ncmp) = gamm(:)*y(3:neq:ncmp) + gamm(:)*y(4:neq:ncmp) - mu_n(:)*y(5:neq:ncmp)
-dydt(6:neq:ncmp) = lambda*y(6:neq:ncmp) - mu_n(:)*(y(1:neq:ncmp)+y(2:neq:ncmp)+y(5:neq:ncmp)) - mu_d(:)*(y(3:neq:ncmp)+y(4:neq:ncmp))
+dydt(6:neq:ncmp) = lambda*y(6:neq:ncmp) - mu_n(:)*(y(1:neq:ncmp)+y(2:neq:ncmp)+y(5:neq:ncmp)) &
+ - mu_d(:)*(y(3:neq:ncmp)+y(4:neq:ncmp))
 
 END SUBROUTINE derivs_agc
 
