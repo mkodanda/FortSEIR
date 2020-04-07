@@ -11,13 +11,11 @@ implicit none
 real(8), dimension(nac,npv+1)        :: Ain   ! nodal Matrix to read in the age classified input parameters, 
                                               ! for last 2 column details, see below
 real(8), dimension(:), allocatable   :: st, et, it, rt, t_loc   ! The SEIR Time Series Predictions and time points
-real(8), dimension(nac,npv+1)  :: Ain   ! nodal Matrix to read in the age classified input parameters, 
-                                        ! for last 2 column details, see below
 real(8), dimension(neq)              :: yt, dydt, yt_scale, ytsv, dydtsv   	! Vectors for RKQS
 
 real(8)                              :: dt_try, dt_next, time, timesv, dt_did
 real(8)                              :: dt, rtol, atol, acc
-integer                              :: nt
+integer                              :: nt, fid
 integer                              :: i, inod, ix, ioerr1, ioerr2, irecout, sizeout(2), t_count, irecspace
 real                                 :: start, finish, time_tot
 real(8), DIMENSION(ncmp,nac)         :: output
@@ -113,7 +111,7 @@ Rm0 = beta/gamm(1)
 
 
 ! iterate over nodes to build the initial conditions
-do inod = 1,nnode
+do inod = 1,nnodes
    ix = (inod-1)*neq
    !--------------------------------------------------------------------------------------------------!
    ! Initiate solution vectors

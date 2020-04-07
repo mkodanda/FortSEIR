@@ -18,7 +18,7 @@ real(8)                      :: Rm0, t_lck, t_ulck, N_tot, t_tot, alpha, beta, l
 real(8), dimension(nac,nac)  :: C_h, C_o, C_s, C_w, C_tot  ! Contact matrices
 character(len=60), parameter :: outdir = '/out/', indir = '/input/'
 character(len=600)           :: cwd, infile, outfile, path_contact, out_cont  ! infile contains age classified model parameters, outfile outputs results, path_contact
-character(len=600)           :: file_h, file_w, file_s, file_o ! Files for contact-matrices
+character(len=600)           :: file_h, file_w, file_s, file_o, file_ntp ! Files for contact-matrices
 
 integer, dimension(nnodes)           :: nngbr    ! total number of neighbours of each node
 integer, dimension(nnodes,max_ngbr)  :: ngbrlst  ! list of the neighbours of each node

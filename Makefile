@@ -1,5 +1,5 @@
 # Compiler
-FC = gfortran
+FC = ifort
 # Compiler flags
 ifeq ($(FC),gfortran)
         CFLAGS = -O0 -pg -g -fopenmp -fbacktrace -fbounds-check
@@ -51,7 +51,6 @@ $(TARGET): $(OBJ)
 clean:
 	rm -f $(OBJDIR)/*.o
 	rm -f $(OBJDIR)/*.mod
-	rm -f $(NRDIR)/*.mod
 	
 all:
 	echo $(NRDIR)
